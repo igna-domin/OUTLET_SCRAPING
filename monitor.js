@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const envPath = fs.existsSync(path.join(__dirname, '.env')) ? '.env' : '.env.txt';
 require('dotenv').config({ path: path.join(__dirname, envPath) });
 const puppeteer = require('puppeteer');
@@ -9,6 +10,7 @@ const URL = 'https://compragamer.com/productos?criterio=outlet&outlet=1';
 const SELECTOR_PRODUCTO = 'cgw-product-card'; 
 const SELECTOR_TITULO = '.product-card__title';
 const SELECTOR_PRECIO = '.product-card__cart__price';
+const INTERVALO_TIEMPO = 120000; // 2 minutos
 
 const JSON_FILE_PATH = path.join(__dirname, 'productos.json');
 
@@ -36,6 +38,7 @@ async function monitorearOutlet() {
         // Lanzamos el navegador con argumentos para pasar desapercibidos
         browser = await puppeteer.launch({ 
             headless: true,
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -75,6 +78,7 @@ async function monitorearOutlet() {
             productosActuales.forEach(p => productosAnteriores.add(p.titulo));
             const listToSave = Array.from(productosAnteriores);
             fs.writeFileSync(JSON_FILE_PATH, JSON.stringify(listToSave, null, 2), 'utf-8');
+            primeraEjecucion = false;
             console.log(`✅ Inicialización del catálogo exitosa. Estado inicial guardado con ${productosAnteriores.size} productos.`);
             return;
         }
@@ -142,12 +146,23 @@ async function enviarNotificacionTelegram(mensaje) {
     }
 }
 
-// Ejecución única para GitHub Actions
-console.log('🚀 Iniciando rastreador de Outlet Compra Gamer...');
-monitorearOutlet().then(() => {
-    console.log('🏁 Proceso finalizado.');
-    process.exit(0);
-}).catch(err => {
-    console.error('💥 Error crítico en la ejecución:', err);
-    process.exit(1);
+// Servidor HTTP básico requerido por Render para el Health Check
+const server = http.createServer((req, res) => {
+    if (req.url === '/' || req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('OK - Scraper activo y monitoreando Compra Gamer.');
+    } else {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not Found');
+    }
 });
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`📡 Servidor HTTP escuchando en el puerto ${PORT}`);
+});
+
+// Ejecución continua
+console.log('🚀 Iniciando rastreador continuo de Outlet Compra Gamer...');
+monitorearOutlet();
+setInterval(monitorearOutlet, INTERVALO_TIEMPO);
