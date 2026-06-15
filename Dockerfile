@@ -1,5 +1,8 @@
 FROM apify/actor-node-puppeteer-chrome:20
 
+# Apuntar Puppeteer al ejecutable de Chrome preinstalado en la imagen de Apify
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+
 # Evitar descargas redundantes de Chromium durante npm install
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_SKIP_DOWNLOAD=true
