@@ -119,6 +119,20 @@ async function monitorearOutlet() {
 
     } catch (error) {
         console.error('⚠️ Error durante la inspección:', error.message);
+        try {
+            if (browser) {
+                const pages = await browser.pages();
+                if (pages.length > 0) {
+                    const activePage = pages[pages.length - 1];
+                    const title = await activePage.title();
+                    console.log(`🔍 Depuración - Título de la página al fallar: "${title}"`);
+                    const bodyText = await activePage.evaluate(() => document.body.innerText.substring(0, 300));
+                    console.log(`🔍 Depuración - Contenido inicial al fallar: \n"${bodyText}"`);
+                }
+            }
+        } catch (e) {
+            console.error('No se pudo obtener información de depuración de la página:', e.message);
+        }
     } finally {
         if (browser) {
             await browser.close();
