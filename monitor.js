@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const os = require('os');
 const envPath = fs.existsSync(path.join(__dirname, '.env')) ? '.env' : '.env.txt';
 require('dotenv').config({ path: path.join(__dirname, envPath) });
 const puppeteer = require('puppeteer');
@@ -12,7 +13,7 @@ const SELECTOR_TITULO = '.product-card__title';
 const SELECTOR_PRECIO = '.product-card__cart__price';
 const INTERVALO_TIEMPO = 120000; // 2 minutos
 
-const JSON_FILE_PATH = path.join(__dirname, 'productos.json');
+const JSON_FILE_PATH = path.join(os.tmpdir(), 'productos.json');
 
 // Cargamos los productos anteriores de productos.json si existe
 let productosAnteriores = new Set();
