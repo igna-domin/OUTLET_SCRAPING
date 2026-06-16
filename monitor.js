@@ -54,23 +54,43 @@ async function monitorearOutlet() {
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
         });
         
-        // Esperamos a 'domcontentloaded' que es más rápido y seguro
+        // Intentamos cargar la página
         await page.goto(URL, { waitUntil: 'domcontentloaded' });
         
-        // Aumentamos el timeout a 30 segundos por las dudas
-        await page.waitForSelector(SELECTOR_PRODUCTO, { timeout: 30000 });
+        let productosActuales = [];
+        try {
+            // Aumentamos el timeout a 45 segundos por el rendimiento del CPU gratuito de Render
+            await page.waitForSelector(SELECTOR_PRODUCTO, { timeout: 45000 });
+        } catch (timeoutErr) {
+            console.log(`[Info] Primer intento de espera fallido. Recargando página para reintentar...`);
+            try {
+                await page.reload({ waitUntil: 'domcontentloaded' });
+                await page.waitForSelector(SELECTOR_PRODUCTO, { timeout: 45000 });
+            } catch (retryErr) {
+                // Si vuelve a fallar, analizamos si simplemente no hay stock de outlet en Compra Gamer
+                const bodyText = await page.evaluate(() => document.body.innerText);
+                if (bodyText.includes("Resultado De La Búsqueda") || bodyText.includes("No se encontraron productos")) {
+                    console.log(`[Info] No se encontraron productos de outlet online en este momento (catálogo vacío o sin stock).`);
+                } else {
+                    throw new Error(`No se pudo cargar el catálogo de productos: ${retryErr.message}`);
+                }
+            }
+        }
 
-        // Scrapeamos los datos actuales de la página
-        const productosActuales = await page.$$eval(SELECTOR_PRODUCTO, (elementos, selTxt, selPrch) => {
-            return elementos.map(el => {
-                const tituloEl = el.querySelector(selTxt);
-                const precioEl = el.querySelector(selPrch);
-                return {
-                    titulo: tituloEl ? tituloEl.innerText.trim() : 'Sin título',
-                    precio: precioEl ? precioEl.innerText.trim() : 'Sin precio'
-                };
-            });
-        }, SELECTOR_TITULO, SELECTOR_PRECIO);
+        // Si existen productos en el DOM, los extraemos
+        const selectorExiste = await page.$(SELECTOR_PRODUCTO) !== null;
+        if (selectorExiste) {
+            productosActuales = await page.$$eval(SELECTOR_PRODUCTO, (elementos, selTxt, selPrch) => {
+                return elementos.map(el => {
+                    const tituloEl = el.querySelector(selTxt);
+                    const precioEl = el.querySelector(selPrch);
+                    return {
+                        titulo: tituloEl ? tituloEl.innerText.trim() : 'Sin título',
+                        precio: precioEl ? precioEl.innerText.trim() : 'Sin precio'
+                    };
+                });
+            }, SELECTOR_TITULO, SELECTOR_PRECIO);
+        }
 
         console.log(`[${new Date().toLocaleTimeString()}] Controlando outlet... Productos online: ${productosActuales.length}`);
 
