@@ -36,17 +36,32 @@ if (fs.existsSync(JSON_FILE_PATH)) {
 async function monitorearOutlet() {
     let browser;
     try {
-        // Lanzamos el navegador con argumentos para pasar desapercibidos
+        // Lanzamos el navegador optimizado para bajo consumo de memoria RAM (512MB limit)
         browser = await puppeteer.launch({ 
             headless: true,
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // Clave en contenedores: usa /tmp en vez de /dev/shm limitado
+                '--disable-gpu',           // Reduce el consumo de RAM al desactivar GPU
+                '--no-zygote',             // Evita procesos zombie/duplicados redundantes
+                '--single-process',        // Ejecuta todo en un único proceso de Chrome (ahorra muchísima RAM)
                 '--disable-blink-features=AutomationControlled' // Oculta que es un bot
             ]
         });
         const page = await browser.newPage();
+        
+        // Bloqueo de recursos pesados para que la página cargue rápido y no infle la memoria RAM en caché
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+            const resourceType = req.resourceType();
+            if (['image', 'font', 'media'].includes(resourceType)) {
+                req.abort();
+            } else {
+                req.continue();
+            }
+        });
         
         // Camuflaje extra para que parezca un Chrome real de Windows
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
@@ -156,6 +171,11 @@ async function monitorearOutlet() {
     } finally {
         if (browser) {
             await browser.close();
+        }
+        // Ejecutar manualmente el Garbage Collector de Node si está expuesto (--expose-gc)
+        if (global.gc) {
+            global.gc();
+            console.log('🧹 [Memoria] Garbage Collector ejecutado con éxito.');
         }
     }
 }

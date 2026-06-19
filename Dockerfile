@@ -16,5 +16,5 @@ RUN npm ci --only=production
 # Copiar el resto del código asignando los permisos correspondientes
 COPY --chown=apify:apify . .
 
-# Comando para iniciar el scraper continuo
-CMD ["node", "monitor.js"]
+# Comando para iniciar el scraper continuo con Garbage Collector expuesto
+CMD ["node", "--expose-gc", "monitor.js"]
